@@ -206,10 +206,27 @@ sentido com `TOKEN_ENCRYPTION_KEY`, que fica fora do banco.
 alterado, revogação do acesso ou 4 meses sem uso. O painel mostra "conectar novamente" e o
 sistema **para de tentar** em vez de insistir com o provedor.
 
+### Evidência (29/10/2026)
+
+| Verificação | Resultado |
+|---|---|
+| Conexão pelo painel | "Conta conectada como BRASILICES" |
+| `ml_user_id` / site | `2617251613` / `MLB` |
+| Tokens em texto puro no banco | **não** (ambos cifrados) |
+| `needs_reconnect` | `false` |
+| Validade do access token | 6 h (renovação automática a partir de 5 min restantes) |
+| `scope` devolvido pelo provedor | 511 caracteres — não os 19 pedidos |
+| Chamada real de leitura | `GET /users/me` OK, reputação `5_green` |
+
+O campo `scope` merece registro: o Mercado Livre devolve a lista **efetiva** de permissões, não a
+solicitada. Com `varchar(255)` a gravação falhava e o callback terminava em 500 **depois** de o
+token já ter sido emitido — obrigando a autorizar de novo. Corrigido na migração `0003`.
+
 ### Diagnóstico
 
 | Sintoma | Causa provável |
 |---|---|
+| Botão de conectar não faz nada | `form-action` do CSP sem `https://auth.mercadolivre.com.br` — o navegador cancela o redirecionamento em silêncio |
 | Volta com "autorização expirou ou já foi usada" | callback repetido, mais de 10 min no login do ML, ou `state` de outra sessão |
 | Volta com "o Mercado Livre recusou a troca do código" | `ML_REDIRECT_URI` diferente do cadastrado, ou `code` já consumido |
 | "aplicativo não configurado" | falta uma das três variáveis `ML_*` no `.env` (exige recriar o container) |
