@@ -46,7 +46,11 @@ _SECURITY_HEADERS = {
     "Referrer-Policy": "no-referrer",
     "Content-Security-Policy": (
         "default-src 'self'; img-src 'self' data:; style-src 'self'; "
-        "frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        "frame-ancestors 'none'; base-uri 'self'; "
+        # `form-action` também vale para o redirecionamento da resposta: sem esta
+        # origem, o navegador cancela em silêncio o salto do `POST /start` para o
+        # Mercado Livre. Só o domínio de autorização é liberado.
+        "form-action 'self' https://auth.mercadolivre.com.br"
     ),
 }
 

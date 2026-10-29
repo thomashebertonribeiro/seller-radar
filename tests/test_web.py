@@ -56,6 +56,20 @@ def test_security_headers_are_present(settings: Settings) -> None:
     assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
 
 
+def test_csp_allows_only_the_mercadolivre_authorization_redirect(settings: Settings) -> None:
+    """`form-action` vale também para o redirecionamento do POST /start.
+
+    Sem a origem do Mercado Livre na lista, o navegador cancela o salto para a
+    tela de autorização sem mostrar erro — o botão parece não fazer nada.
+    """
+    with _client(settings) as client:
+        csp = client.get("/login").headers["content-security-policy"]
+
+    assert "form-action 'self' https://auth.mercadolivre.com.br" in csp
+    assert "form-action *" not in csp
+    assert "api.mercadolibre.com" not in csp
+
+
 def test_no_documentation_endpoints_are_exposed(settings: Settings) -> None:
     with _client(settings) as client:
         for path in ("/docs", "/openapi.json", "/redoc"):
