@@ -44,6 +44,7 @@ services:
     restart: unless-stopped
     networks:
       - internal
+      - proxy
 
   worker:
     build:
@@ -80,3 +81,7 @@ volumes:
 
 networks:
   internal:
+  # Rede compartilhada com o Nginx Proxy Manager. O upstream é resolvido por
+  # nome de container, nunca por porta publicada no host.
+  proxy:
+    external: true
