@@ -1,0 +1,16 @@
+[Unit]
+Description=Backup do PostgreSQL do Seller Radar
+Documentation=file:///srv/seller-radar/docs/operacao.md
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=radar
+Group=radar
+WorkingDirectory=/srv/seller-radar
+ExecStart=/srv/seller-radar/scripts/backup.sh
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=30min
