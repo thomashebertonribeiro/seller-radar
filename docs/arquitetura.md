@@ -16,25 +16,24 @@ interna, sem portas publicadas no host.
 
 ## Decisões
 
-### D0 — Implementação nova, com reaproveitamento pontual
+### D0 — Reaproveitamento da implementação existente
 
-**Contexto:** existia uma implementação anterior de data lake para o Mercado Livre
-(~19 mil linhas, 223 de 225 testes passando em execução verificada). Ela foi avaliada
-antes de decidir entre adaptar e reescrever.
+**Contexto:** duas implementações existem. Uma anterior, de *data lake* para o Mercado
+Livre (~19 mil linhas, 223 de 225 testes passando em execução verificada), focada em
+preço, concorrência e sinais de mercado. E a atual, neste repositório, já com Fase 0.5
+(hardening) e Fase 1 (login, banco, painel, finance engine) publicadas.
 
-**Decisão:** construir o Seller Radar do zero e portar apenas três peças isoladas:
+**Decisão:** o Seller Radar **continua a partir do código deste repositório**, sem
+reescrita. A implementação anterior não é incorporada; serve apenas como referência em
+três pontos: *rate limiter* com backoff/`Retry-After`, casos de teste financeiros de
+borda e o padrão de *raw payload* para auditoria.
 
-1. o *rate limiter* com backoff exponencial e respeito a `Retry-After` (testado);
-2. os casos de teste financeiros como referência de borda (o código, não);
-3. o padrão de *raw payload* e snapshots para auditoria.
+**Motivo:** a base atual já resolve o que a anterior não tinha — criptografia dos tokens,
+`Decimal` de ponta a ponta, guarda GET-only testada, autenticação do painel, migrações
+versionadas e testes verdes. Reescrever custaria mais do que evoluir.
 
-**Motivo:** o que o projeto anterior não tem é justamente o núcleo deste — modelo de
-pedidos, itens, pagamentos e envios; visitas por anúncio; autenticação do painel;
-criptografia dos tokens; lock de renovação; dinheiro em `NUMERIC`; vigência de custo.
-Adaptar significaria reescrever o núcleo mantendo milhares de linhas incompatíveis em
-volta.
-
-**Descartado:** adotar o projeto anterior como base, com reuso integral.
+**Descartado:** incorporar o *data lake* anterior (sem modelo de pedidos, sem visitas,
+sem autenticação, com dinheiro em `float` e dependência de Redis/Playwright).
 
 ### D1 — Interface renderizada no servidor (Jinja2 + HTMX)
 
