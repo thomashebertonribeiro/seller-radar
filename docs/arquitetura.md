@@ -16,6 +16,26 @@ interna, sem portas publicadas no host.
 
 ## Decisões
 
+### D0 — Implementação nova, com reaproveitamento pontual
+
+**Contexto:** existia uma implementação anterior de data lake para o Mercado Livre
+(~19 mil linhas, 223 de 225 testes passando em execução verificada). Ela foi avaliada
+antes de decidir entre adaptar e reescrever.
+
+**Decisão:** construir o Seller Radar do zero e portar apenas três peças isoladas:
+
+1. o *rate limiter* com backoff exponencial e respeito a `Retry-After` (testado);
+2. os casos de teste financeiros como referência de borda (o código, não);
+3. o padrão de *raw payload* e snapshots para auditoria.
+
+**Motivo:** o que o projeto anterior não tem é justamente o núcleo deste — modelo de
+pedidos, itens, pagamentos e envios; visitas por anúncio; autenticação do painel;
+criptografia dos tokens; lock de renovação; dinheiro em `NUMERIC`; vigência de custo.
+Adaptar significaria reescrever o núcleo mantendo milhares de linhas incompatíveis em
+volta.
+
+**Descartado:** adotar o projeto anterior como base, com reuso integral.
+
 ### D1 — Interface renderizada no servidor (Jinja2 + HTMX)
 
 **Motivo:** um único usuário, uma VPS pequena e muitos gráficos simples. Server-side
