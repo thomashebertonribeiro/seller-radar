@@ -1,0 +1,94 @@
+# Arquitetura
+
+Documento vivo. Cada decisão registra o motivo e o que foi descartado.
+
+## Visão geral
+
+```
+Internet ──► Proxy reverso (TLS, já existente) ──► web (FastAPI + Jinja2/HTMX)
+                                                     │
+                                       rede interna ─┼── db (PostgreSQL 17)
+                                                     └── worker (APScheduler)
+```
+
+Apenas o serviço `web` entra na rede do proxy reverso. `db` e `worker` ficam em rede
+interna, sem portas publicadas no host.
+
+## Decisões
+
+### D1 — Interface renderizada no servidor (Jinja2 + HTMX)
+
+**Motivo:** um único usuário, uma VPS pequena e muitos gráficos simples. Server-side
+elimina build de frontend, `node_modules`, um processo Node e o problema de manter duas
+linguagens. HTMX cobre os pontos interativos (filtros, sincronização manual com progresso).
+
+**Descartado:** SPA (React/Vue) — custo de build e de manutenção desproporcional ao escopo.
+
+### D2 — `web` e `worker` como serviços separados
+
+**Motivo:** requisito explícito de isolamento de falha. O worker roda sincronização,
+cálculos e chamadas à Claude API; um travamento nele não pode derrubar o painel.
+
+Ambos usam a mesma imagem e o mesmo código, diferenciados pelo comando de entrada.
+
+### D3 — PostgreSQL dedicado, não reaproveitamento
+
+**Motivo:** o ambiente já tinha uma stack de BaaS com Postgres exposto publicamente e
+serviços instáveis. Acoplar o painel a ela aumentaria o raio de falha e misturaria dados
+de produtos diferentes. Um Postgres dedicado, sem porta publicada, é mais simples de
+proteger e de fazer backup.
+
+### D4 — Agendador dentro do worker (APScheduler) + advisory lock no Postgres
+
+**Motivo:** cron do host exigiria alterar o sistema e não oferece lock transacional.
+O advisory lock do Postgres (`pg_try_advisory_lock`) garante que execução agendada e
+manual nunca rodem ao mesmo tempo, sem adicionar Redis, fila ou orquestrador.
+
+### D5 — Sem Redis, sem Kubernetes, sem n8n
+
+**Motivo:** nenhuma necessidade técnica que justifique mais um serviço em uma máquina de
+1 vCPU. Controle de concorrência via banco; fila implícita via tabela de execuções com
+estado e checkpoint.
+
+### D6 — Cliente HTTP somente leitura
+
+**Motivo:** segurança e previsibilidade. O cliente da API do Mercado Livre aceita apenas
+`GET`; a única exceção é `POST /oauth/token` (troca de código e refresh). Qualquer tentativa
+de `POST`, `PUT`, `PATCH` ou `DELETE` contra a API levanta exceção antes de sair da aplicação,
+e há teste automatizado que falha se isso mudar.
+
+### D7 — Tokens criptografados com chave fora do banco
+
+**Motivo:** um dump do banco não deve entregar acesso à conta do vendedor. A chave vem de
+variável de ambiente, nunca é gravada em tabela nem versionada.
+
+Renovação com lock e gravação atômica porque o refresh token é de **uso único**: duas
+renovações concorrentes com o mesmo token desconectariam a conta.
+
+### D8 — Valores monetários em `NUMERIC`
+
+**Motivo:** `float` acumula erro e corrompe margem. Toda aritmética financeira usa `Decimal`
+no Python e `NUMERIC(14,2)` (ou precisão maior em custos unitários) no banco.
+
+## Fluxo de uma execução diária
+
+1. Aquisição do advisory lock (`radar:daily`). Se falhar, encerra sem erro.
+2. Verificação do estado da autorização; renovação de token se necessário.
+3. Sincronização incremental por data de atualização, com janela de sobreposição.
+4. Validação de integridade (contagens, lacunas de data, órfãos).
+5. Cálculo dos indicadores (determinístico, testado).
+6. Geração do relatório via Claude API com resposta validada por schema.
+7. Persistência do relatório e das recomendações.
+8. Liberação do lock e gravação do resultado da execução.
+
+Cada etapa grava checkpoint, permitindo retomar sem duplicar dados (upsert idempotente).
+
+## Estados de qualidade do dado
+
+Todo resultado carrega um estado e, quando não for completo, **qual componente falta**:
+
+- `completo` — todos os componentes disponíveis e conferidos.
+- `estimado` — algum componente é aproximação (ex.: frete rateado).
+- `incompleto` — componente ausente (ex.: SKU sem custo cadastrado).
+
+A interface nunca apresenta número estimado como se fosse exato.

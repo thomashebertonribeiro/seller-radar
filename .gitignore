@@ -1,0 +1,40 @@
+# Segredos e ambiente
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+coverage.xml
+.coverage
+htmlcov/
+
+# Node (apenas ferramentas auxiliares)
+node_modules/
+npm-debug.log*
+
+# Dados locais e artefatos
+*.sqlite3
+*.db
+*.sql.gz
+*.dump
+backups/
+exports/
+*.pdf
+
+# Logs
+logs/
+*.log
+
+# Editores e sistema
+.idea/
+.vscode/
+.DS_Store
