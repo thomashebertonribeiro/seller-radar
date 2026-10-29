@@ -185,3 +185,19 @@ par é gravado na mesma transação — ou os dois tokens mudam, ou nenhum.
 `needs_reconnect` e o motivo em `last_error`, em vez de tentar de novo a cada requisição. O painel
 mostra "conectar novamente" e não insiste com o provedor.
 
+### D17 — Webhook existe para satisfazer o DevCenter, não para processar
+
+**Contexto:** o DevCenter não salva a aplicação com a URL de notificações vazia. Mas a
+sincronização da Fase 2 não depende de notificações.
+
+**Decisão:** `POST /webhooks/mercadolivre` responde 200 e **não faz nada** além de registrar o
+tópico. Nenhuma escrita, nenhuma consulta à API no caminho da requisição.
+
+**Motivo:** o provedor exige HTTP 200 em até 500 ms e retenta por 1 hora; se continuar falhando,
+**desativa o tópico** na aplicação. Processar no caminho da resposta criaria um modo de falha
+silencioso e difícil de diagnosticar, sem nenhum benefício enquanto o volume é baixo.
+
+**Consequência:** quando a Fase 3 existir, o corpo será enfileirado — a resposta continua
+imediata e o trabalho acontece fora do ciclo. Tópicos de interesse já são reconhecidos, então a
+mudança será local.
+

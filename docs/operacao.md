@@ -215,6 +215,54 @@ sistema **para de tentar** em vez de insistir com o provedor.
 | "aplicativo não configurado" | falta uma das três variáveis `ML_*` no `.env` (exige recriar o container) |
 | "conta conectada" mas sem apelido | `/users/me` falhou; a conexão em si está válida |
 
+## Notificações (webhook)
+
+O DevCenter **não aceita** o campo de notificações vazio. Por isso existe um receptor mínimo:
+
+```
+POST https://ml.brasilices.tech/webhooks/mercadolivre
+```
+
+Ele responde `{"status": "ok"}` com HTTP 200 e **não processa nada**. Isso é deliberado: o
+contrato do Mercado Livre exige 200 em até **500 ms**; sem isso ele retenta por 1 hora e depois
+**desativa o tópico** na aplicação. Trabalho no caminho da resposta é risco desnecessário
+enquanto a sincronização não existe.
+
+O que o receptor faz hoje:
+
+| Situação | Resposta | Efeito |
+|---|---|---|
+| Notificação de tópico de interesse da nossa aplicação | 200 | uma linha de log (`topic`, `resource`, `user_id`) |
+| Notificação de outra `application_id`, ou tópico sem interesse | 200 | log em nível `debug` |
+| Corpo que não é JSON | 200 | aviso no log |
+
+Recusar não é opção: qualquer resposta diferente de 200 faz o provedor insistir e, no limite,
+desligar o tópico. Como nada é gravado nem alterado, um `POST` forjado não muda estado.
+
+### O que escolher no DevCenter
+
+- **URL de retorno de chamada de notificação:** `https://ml.brasilices.tech/webhooks/mercadolivre`
+- **Tópicos:** `orders_v2`, `items`, `shipments`, `payments` (os quatro já são reconhecidos no log;
+  nenhum dispara ação ainda)
+
+Não use a URL do OAuth neste campo. São coisas diferentes:
+
+| Campo | Valor |
+|---|---|
+| URLs de redirecionamento (OAuth) | `https://ml.brasilices.tech/auth/mercadolivre/callback` |
+| Retorno de chamada de notificação | `https://ml.brasilices.tech/webhooks/mercadolivre` |
+
+### Como testar
+
+```bash
+curl -sS -X POST https://ml.brasilices.tech/webhooks/mercadolivre \
+  -H "Content-Type: application/json" \
+  -d '{"topic":"orders_v2","resource":"/orders/1","user_id":1,"application_id":1}'
+# {"status":"ok"}
+```
+
+O log correspondente aparece em `docker compose logs -f web`.
+
 ## Atualização de versão
 
 ```bash

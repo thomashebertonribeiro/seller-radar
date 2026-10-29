@@ -31,6 +31,7 @@ from seller_radar.security import (
     verify_password,
 )
 from seller_radar.web.oauth_routes import router as ml_router
+from seller_radar.web.webhooks import router as webhook_router
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -116,6 +117,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
     app.include_router(ml_router)
+    app.include_router(webhook_router)
 
     @app.middleware("http")
     async def _security_headers(request: Request, call_next):
