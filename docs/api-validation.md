@@ -38,29 +38,50 @@ par na mesma transação.
 cifrado (D15) e renovação sob advisory lock com `needs_reconnect` em erro terminal (D16) —
 ver `docs/arquitetura.md` e `src/seller_radar/ml/credentials.py`.
 
-## A validar na Fase 2
+## Validação com conta real (Fase 3a) — 29/10/2026
 
-| Recurso | O que precisa ser confirmado | Status |
+Conta `BRASILICES` (seller `2617251613`, site `MLB`), token de produção, **apenas `GET`**.
+Números medidos, não estimados: 56 anúncios (25 ativos), 14 pedidos em 30 dias.
+
+| Recurso | Resultado | Implicação |
 |---|---|---|
-| `GET /orders/search` | filtros por data de criação e de atualização; limite de `offset`; tamanho máximo de página; janela de antiguidade consultável | pendente |
-| `GET /orders/{id}` | composição de tarifa por item, descontos, cancelamentos, mediações | pendente |
-| `GET /shipments/{id}` | custo do envio, quem paga o frete, rateio entre itens | pendente |
-| `GET /items/{id}` e variações | campos de estoque, status, preço, SKU (`seller_custom_field`) | pendente |
-| `GET /items/{id}/visits/time_window` | granularidade, limite de dias por consulta, disponibilidade histórica | pendente |
-| Product Ads | se a conta tem acesso e qual permissão é exigida | pendente |
-| Faturamento / cobranças | existência de endpoint e escopo necessário | pendente |
-| Notificações (webhooks) | tópicos disponíveis, validação de origem, reentrega | pendente |
-| Dados do comprador | o que a API ainda expõe e sob quais condições | pendente |
+| `GET /users/{id}/items/search` | OK — `paging.total/limit/offset`, filtro `status` | paginação explícita; sincronizar por `date_last_updated` |
+| `GET /items/{id}` | OK — `price`, `available_quantity`, `sold_quantity`, `status`, `category_id`, `listing_type_id`, `condition`, `catalog_listing`, `variations`, `last_updated` | base do cadastro de anúncios |
+| `GET /items?ids=` (multiget) | OK — lista de `{code, body}` | lote de até 20 por chamada reduz o custo da sincronização |
+| `GET /items/{id}/visits/time_window` | OK — `last=30&unit=day`, pontos `{date, total, visits_detail}` | visitas diárias por anúncio |
+| `GET /sites/MLB/listing_prices` | OK — **retorna lista**; `sale_fee_details` = `{percentage_fee, fixed_fee, gross_amount}` | tarifa de referência: `gold_special` 11%, `gold_pro` 16% |
+| `GET /orders/search` | OK — filtros `order.date_created.from` **e** `order.date_last_updated.from`; `sort=date_desc` | janela de 30 dias funcionou; incremental por atualização |
+| `GET /orders/{id}` | OK — `order_items[].sale_fee`, `payments[]`, `taxes`, `shipping.id` | **tarifa real da venda** vem em `sale_fee` |
+| `GET /shipments/{id}` | OK — `base_cost`, `cost_components`, `logistic_type`, `shipping_option` | frete e modalidade logística |
+| `GET /shipments/{id}/costs` | OK — `gross_amount`, `senders[].cost`, `discounts`, `save` | **custo real do frete do vendedor** |
+| Product Ads | **HTTP 401** — `Operator User is not authorized to access the advertiser` | sem acesso com este token; fica `indisponível` até haver permissão |
+| Notificações | webhook ativo em `/webhooks/mercadolivre`, resposta 200 | tópicos aceitos; processamento só na Fase 3b |
+| Dados do comprador | `buyer` traz **apenas** `id` e `nickname` | suficiente para distinguir recompra; nada de endereço ou e-mail |
 
-Enquanto um recurso estiver `pendente`, a tela correspondente mostra **"indisponível"** —
-nunca um número estimado apresentado como real.
+### Descobertas que mudam o modelo de dados
+
+1. **`orders[].shipping_cost` e `orders[].taxes.amount` vêm `null`.** O custo do frete está em
+   `/shipments/{id}/costs` (`senders[].cost`) e a tarifa do ML em `order_items[].sale_fee`.
+   Modelar frete a partir do pedido daria sempre zero.
+2. **`payments[].marketplace_fee` vem `0.0`** no caso medido (`bank_transfer`). Não serve como
+   fonte de tarifa; `sale_fee` é a fonte correta.
+3. **`sale_fee` é por item de pedido**, não por pedido — pedidos com vários vendedores/itens
+   exigem soma por linha.
+4. **`seller_custom_field` pode ser `null`**; o SKU também aparece em `order_items[].item.seller_sku`.
+   O vínculo anúncio↔custo precisa aceitar SKU ausente sem quebrar.
+5. **Visitas só existem para anúncio ativo** — o anúncio encerrado devolveu `total_visits: 0` e
+   nenhum ponto. Ausência de dado não é zero: a tela precisa distinguir "sem visitas" de
+   "anúncio sem coleta".
+
+Enquanto um recurso estiver `pendente` ou `indisponível`, a tela correspondente mostra
+**"indisponível"** — nunca um número estimado apresentado como real.
 
 ## Limites de requisição
 
 A documentação consultada cita `429 local_rate_limited` sem publicar uma cota numérica
 estável. Decisão: tratar 429 e 5xx com backoff exponencial + jitter, respeitar `Retry-After`
-quando presente, e **não** repetir erros 4xx definitivos. A cota real será medida na Fase 2
-com chamadas legítimas.
+quando presente, e **não** repetir erros 4xx definitivos. A cota real será medida com chamadas
+legítimas — as ~20 chamadas da Fase 3a não produziram nenhum 429.
 
 ## Notas
 
