@@ -142,7 +142,9 @@ tabela já reprova a verificação com `exit 1`.
 | Backup manual | `radar-20261029-222716.dump`, 12K, legível por `pg_restore --list` |
 | Restauração em banco descartável | `OK: 4 tabelas conferidas, contagens idênticas` |
 | Banco descartável removido | sim (nenhum `radar_restore_*` remanescente) |
-| Timer habilitado | `seller-radar-backup.timer` em `timers.target.wants` |
+| Serviço pelo systemd | `Result=success`, `ExecMainStatus=0` |
+| Retenção | dump de 20 dias removido; de 3 dias preservado |
+| Timer habilitado | `seller-radar-backup.timer` em `timers.target.wants`, próxima execução 06:03 UTC |
 
 O que **não** está coberto: os dumps ficam no mesmo disco do banco. Isso protege contra
 erro de operação e corrupção lógica, não contra perda do servidor — cópia externa entra
