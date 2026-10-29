@@ -76,8 +76,9 @@ docker compose exec web alembic upgrade head
 docker compose exec web python -m seller_radar.cli create-user --email voce@exemplo.com
 ```
 
-A aplicação sobe em `http://127.0.0.1:8010` — publicada **apenas no loopback**. O TLS e o
-domínio ficam no proxy reverso do servidor.
+A aplicação sobe em `http://127.0.0.1:8010` — publicada **apenas no loopback**. Em produção ela
+é servida em `https://ml.brasilices.tech` pelo proxy reverso, que fala com o container pela rede
+Docker interna. O TLS e o domínio nunca ficam dentro da aplicação.
 
 Suíte de testes (roda em container separado, sem Node e sem banco local):
 
