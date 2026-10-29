@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Painel · Seller Radar{% endblock %}
+{% block content %}
+<header class="topbar">
+  <div>
+    <h1>Seller Radar</h1>
+    <p class="muted">{{ user.email }}</p>
+  </div>
+  <form method="post" action="/logout">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="ghost">Sair</button>
+  </form>
+</header>
+
+<section class="card">
+  <h2>Conexão com o Mercado Livre</h2>
+  {% if ml_connected %}
+    <p class="ok">Conta conectada.</p>
+  {% elif ml_configured %}
+    <p class="muted">Aplicativo configurado, conta ainda não autorizada.</p>
+  {% else %}
+    <p class="muted">Aplicativo não configurado (variáveis <code>ML_*</code> ausentes).</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Indicadores</h2>
+  <p class="muted">
+    Nenhum indicador é exibido enquanto os endpoints de pedidos, envios e visitas
+    estiverem marcados como <code>pendente</code> em
+    <code>docs/api-validation.md</code>. Número estimado nunca aparece como exato.
+  </p>
+</section>
+{% endblock %}

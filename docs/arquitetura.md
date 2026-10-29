@@ -92,3 +92,38 @@ Todo resultado carrega um estado e, quando não for completo, **qual componente 
 - `incompleto` — componente ausente (ex.: SKU sem custo cadastrado).
 
 A interface nunca apresenta número estimado como se fosse exato.
+
+## Decisões da implementação (Fase 1)
+
+### D9 — Sessão em cookie assinado, sem tabela de sessão
+
+**Motivo:** um usuário, uma instância. Uma tabela de sessões adicionaria escrita no banco a cada
+requisição e um job de limpeza, sem ganho. O cookie é assinado com `SECRET_KEY` (vem do ambiente),
+`HttpOnly` por padrão do `SessionMiddleware`, `SameSite=Lax` e `Secure` em produção.
+
+**Limitação aceita:** encerrar sessão de todos os dispositivos exige trocar `SECRET_KEY`.
+
+### D10 — CSRF explícito em todo formulário
+
+**Motivo:** o cookie de sessão é enviado automaticamente pelo navegador; sem token, um site
+externo pode disparar `POST /login` ou `POST /logout`. O token vive na sessão, é comparado com
+`secrets.compare_digest` e é exigido em todo `POST`. Não há estado global, não há dependência extra.
+
+### D11 — Limite de tentativas de login em memória
+
+**Motivo:** 5 falhas por IP a cada 15 minutos barram força bruta trivial sem adicionar Redis.
+**Limitação aceita:** o contador é por processo. Com mais de uma instância de `web` ele deixa de
+ser global — no desenho atual (uma VPS, um processo) é suficiente.
+
+### D12 — Migrações obrigatórias, sem `create_all`
+
+**Motivo:** `Base.metadata.create_all` esconde divergência entre modelo e banco. O container sobe
+com o schema antigo até que `alembic upgrade head` rode explicitamente, e a falha é visível.
+
+### D13 — `GET`-only verificado antes do transporte
+
+**Motivo:** a checagem de D6 acontece em `_guard`, **antes** de a requisição existir. Teste com
+`MockTransport` verifica que nenhuma chamada chega a ser emitida para `POST`, `PUT`, `PATCH`,
+`DELETE`, `HEAD` e `OPTIONS`. A única exceção do projeto é `POST /oauth/token`, isolada em
+`seller_radar/ml/oauth.py`.
+

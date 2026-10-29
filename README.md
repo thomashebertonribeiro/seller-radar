@@ -5,9 +5,9 @@ Painel privado de análise de uma loja do Mercado Livre (site MLB, Brasil), com 
 pela Claude API a partir de indicadores já calculados.
 
 > **Status:** Fase 0 (diagnóstico) e Fase 0.5 (contenção da superfície exposta) concluídas.
-> Nenhum código de aplicação implementado ainda. Este repositório contém, por enquanto, apenas a
-> documentação de base, as decisões de arquitetura, a validação inicial da API e o registro do
-> endurecimento do servidor.
+> Fase 1 em andamento: esqueleto executável com login próprio, migrações, separação `web`/`worker`
+> e cliente da API do Mercado Livre **somente leitura**, com teste que falha se a regra mudar.
+> Nenhum indicador financeiro é exibido ainda.
 
 ## Problema
 
@@ -67,8 +67,31 @@ Detalhes e justificativas em [`docs/arquitetura.md`](docs/arquitetura.md).
 
 ## Como executar
 
-Ainda não há código executável. Este documento será atualizado na Fase 1, junto com o
-`docker-compose.yml`, as migrações e o comando de criação do usuário inicial.
+Requisitos: Docker e Docker Compose. Nada de Node, nada de build de frontend.
+
+```bash
+cp .env.example .env          # preencha os valores; gere os segredos localmente
+docker compose up -d --build
+docker compose exec web alembic upgrade head
+docker compose exec web python -m seller_radar.cli create-user --email voce@exemplo.com
+```
+
+A aplicação sobe em `http://127.0.0.1:8010` — publicada **apenas no loopback**. O TLS e o
+domínio ficam no proxy reverso do servidor.
+
+Suíte de testes (roda em container separado, sem Node e sem banco local):
+
+```bash
+docker compose --profile test run --rm test
+```
+
+Gerar os segredos:
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(48))"                    # SECRET_KEY
+python3 -c "import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())"  # TOKEN_ENCRYPTION_KEY
+```
+
 
 ## Segurança
 
