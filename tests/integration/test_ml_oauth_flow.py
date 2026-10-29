@@ -111,11 +111,16 @@ def _start(client: TestClient) -> str:
 
 
 def _tokens(access: str = "APP_USR-teste", refresh_token: str = "TG-teste") -> TokenSet:
+    # O Mercado Livre devolve o escopo efetivo completo (>800 caracteres), não o
+    # que foi pedido. Reproduzir isso aqui trava a regressão da coluna `scope`.
+    escopo_longo = "offline_access read " + " ".join(
+        f"urn:ml:mktp:orders-shipments{i}:/read-write" for i in range(40)
+    )
     return TokenSet(
         access_token=access,
         refresh_token=refresh_token,
         expires_at=utcnow() + timedelta(hours=6),
-        scope="offline_access read",
+        scope=escopo_longo,
         ml_user_id="123456",
     )
 

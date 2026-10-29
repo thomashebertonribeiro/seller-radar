@@ -109,7 +109,18 @@ def callback(
         return _back("falhou")
 
     nickname, site_id = _profile(tokens.access_token)
-    store_tokens(db, user_id, tokens, _cipher(settings), nickname=nickname, site_id=site_id)
+    try:
+        store_tokens(
+            db, user_id, tokens, _cipher(settings), nickname=nickname, site_id=site_id
+        )
+    except Exception:
+        # O token já foi emitido pelo provedor; sem gravar, a autorização se
+        # perde e o vendedor precisa repetir o fluxo. Falhar aqui é erro nosso,
+        # então o log é completo e a página mostra uma mensagem, não um 500.
+        logger.exception("falha ao gravar a credencial do Mercado Livre")
+        db.rollback()
+        return _back("falhou")
+
     logger.info("conta do Mercado Livre conectada: ml_user_id=%s", tokens.ml_user_id)
     return _back("conectado")
 

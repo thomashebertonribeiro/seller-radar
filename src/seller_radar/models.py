@@ -67,7 +67,7 @@ class MlCredential(Base):
     access_token_enc: Mapped[str] = mapped_column(Text, nullable=False)
     refresh_token_enc: Mapped[str] = mapped_column(Text, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    scope: Mapped[str | None] = mapped_column(String(255))
+    scope: Mapped[str | None] = mapped_column(Text)
     needs_reconnect: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
