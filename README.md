@@ -4,9 +4,10 @@ Painel privado de análise de uma loja do Mercado Livre (site MLB, Brasil), com 
 **somente leitura** à API oficial, motor financeiro determinístico e recomendações geradas
 pela Claude API a partir de indicadores já calculados.
 
-> **Status:** Fase 0 (diagnóstico de infraestrutura) concluída. Nenhum código de aplicação
-> implementado ainda. Este repositório contém, por enquanto, apenas a documentação de base,
-> as decisões de arquitetura e a validação inicial da API.
+> **Status:** Fase 0 (diagnóstico) e Fase 0.5 (contenção da superfície exposta) concluídas.
+> Nenhum código de aplicação implementado ainda. Este repositório contém, por enquanto, apenas a
+> documentação de base, as decisões de arquitetura, a validação inicial da API e o registro do
+> endurecimento do servidor.
 
 ## Problema
 
@@ -59,6 +60,7 @@ Detalhes e justificativas em [`docs/arquitetura.md`](docs/arquitetura.md).
 |---|---|
 | [`docs/arquitetura.md`](docs/arquitetura.md) | Decisões de arquitetura e trade-offs |
 | [`docs/diagnostico-fase-0.md`](docs/diagnostico-fase-0.md) | Inventário do ambiente e riscos encontrados |
+| [`docs/fase-0-5-hardening.md`](docs/fase-0-5-hardening.md) | Fechamento das portas expostas, firewall e efeitos colaterais |
 | [`docs/api-validation.md`](docs/api-validation.md) | O que foi confirmado na documentação oficial e o que falta verificar |
 | [`docs/formulas.md`](docs/formulas.md) | Fórmulas financeiras com exemplo numérico |
 | [`docs/operacao.md`](docs/operacao.md) | Runbook de operação (em construção) |

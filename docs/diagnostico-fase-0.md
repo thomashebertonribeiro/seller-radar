@@ -87,8 +87,10 @@ com `docker compose up -d`, rebaixando as imagens.
 
 ## Riscos que permanecem
 
-1. **Sem firewall de host.** Portas de ferramentas internas continuam publicadas.
-2. **Painel do proxy reverso acessível publicamente** na 81.
+1. ~~**Sem firewall de host.** Portas de ferramentas internas continuam publicadas.~~
+   **Resolvido em 29/10/2026** — ver [`fase-0-5-hardening.md`](fase-0-5-hardening.md).
+2. ~~**Painel do proxy reverso acessível publicamente** na 81.~~ **Resolvido** — agora em
+   `127.0.0.1`, acesso por túnel SSH.
 3. **Token do GitHub exposto** no remote do projeto legado — precisa ser revogado.
 4. **4 GB é o teto estrutural.** Postiz (com Temporal e Elasticsearch) e n8n sozinhos
    ocupam ~900 MB. O Seller Radar cabe, mas sem folga para picos.
