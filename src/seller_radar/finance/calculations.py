@@ -183,10 +183,16 @@ def minimum_price(
 
     numerator = D(unit_cost) + D(shipping) + D(other_variable) + D(commission_fixed)
     price = q2_ceil(numerator / denominator)
-    return MinimumPriceResult(price, _achieved_margin_pct(price, unit_cost, shipping,
-                                                          commission_pct, commission_fixed,
-                                                          tax_rate, other_variable),
-                              Quality.complete())
+    achieved = _achieved_margin_pct(
+        price,
+        unit_cost,
+        shipping,
+        commission_pct,
+        commission_fixed,
+        tax_rate,
+        other_variable,
+    )
+    return MinimumPriceResult(price, achieved, Quality.complete())
 
 
 def _achieved_margin_pct(

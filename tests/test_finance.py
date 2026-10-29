@@ -57,7 +57,7 @@ def test_marketplace_net_matches_doc_example() -> None:
 def test_fixed_commission_is_absolute_not_percentage() -> None:
     com_fixa = line(commission_fixed_per_unit=D("6.00"))
 
-    # 190 - 22,80 - 12,00 (fixa × 2) - 15,00
+    # 190 - 22,80 - 12,00 (fixa * 2) - 15,00
     assert marketplace_net(com_fixa) == D("140.20")
 
 

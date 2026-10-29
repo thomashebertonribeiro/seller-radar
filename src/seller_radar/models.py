@@ -8,7 +8,7 @@ correspondentes saírem de `pendente` em docs/api-validation.md.
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import (
     CheckConstraint,
@@ -26,7 +26,7 @@ from seller_radar.db import Base
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class User(Base):

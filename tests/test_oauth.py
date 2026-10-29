@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -63,7 +63,7 @@ async def test_exchange_code_posts_only_to_token_endpoint(settings: Settings) ->
     assert "client_secret=segredo" in body
     assert tokens.access_token == "APP_USR-1"
     assert tokens.ml_user_id == "42"
-    assert tokens.expires_at > datetime.now(timezone.utc)
+    assert tokens.expires_at > datetime.now(UTC)
 
 
 async def test_refresh_uses_refresh_token_grant(settings: Settings) -> None:

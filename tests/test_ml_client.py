@@ -42,7 +42,10 @@ async def test_retries_on_429_and_honours_retry_after(monkeypatch: pytest.Monkey
     captured: list[httpx.Request] = []
     client = _client(
         make_transport(
-            [httpx.Response(429, headers={"Retry-After": "1"}), httpx.Response(200, json={"ok": True})],
+            [
+                httpx.Response(429, headers={"Retry-After": "1"}),
+                httpx.Response(200, json={"ok": True}),
+            ],
             captured,
         )
     )

@@ -25,10 +25,10 @@ from seller_radar.models import User, utcnow
 from seller_radar.security import (
     CSRF_SESSION_KEY,
     csrf_matches,
+    hash_password,
     needs_rehash,
     new_csrf_token,
     verify_password,
-    hash_password,
 )
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -103,7 +103,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 
     @app.middleware("http")
-    async def _security_headers(request: Request, call_next):  # noqa: ANN001, ANN202
+    async def _security_headers(request: Request, call_next):
         response: Response = await call_next(request)
         for header, value in _SECURITY_HEADERS.items():
             response.headers.setdefault(header, value)
@@ -140,7 +140,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ip = _client_ip(request)
 
         if not csrf_matches(request.session.get(CSRF_SESSION_KEY), csrf_token):
-            return _render_login(request, error="Sessão expirada. Tente novamente.", status_code=400)
+            return _render_login(
+                request, error="Sessão expirada. Tente novamente.", status_code=400
+            )
 
         if _throttled(ip):
             return _render_login(

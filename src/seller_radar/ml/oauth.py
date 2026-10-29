@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import secrets
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from urllib.parse import urlencode
 
 import httpx
@@ -92,7 +92,7 @@ async def _post_token(
     return TokenSet(
         access_token=data["access_token"],
         refresh_token=data["refresh_token"],
-        expires_at=datetime.now(timezone.utc) + timedelta(seconds=int(data["expires_in"])),
+        expires_at=datetime.now(UTC) + timedelta(seconds=int(data["expires_in"])),
         scope=data.get("scope"),
         ml_user_id=str(data["user_id"]) if data.get("user_id") is not None else None,
     )
