@@ -1,9 +1,13 @@
 [Unit]
 Description=Backup diário do PostgreSQL do Seller Radar
+Documentation=file:///srv/seller-radar/docs/operacao.md
 
 [Timer]
-OnCalendar=*-*-* 03:00:00
-Timezone=America/Sao_Paulo
+# 03:00 em America/Sao_Paulo. Escrito em UTC de propósito: o host roda em UTC e
+# o `Timezone=` do systemd 255 não foi honrado neste servidor (o timer apontava
+# para 03:00 UTC). O Brasil não tem horário de verão desde 2019, então o deslocamento
+# é fixo em -03:00 — 06:00 UTC = 03:00 BRT.
+OnCalendar=*-*-* 06:00:00 UTC
 Persistent=true
 RandomizedDelaySec=300
 

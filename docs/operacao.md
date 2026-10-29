@@ -1,8 +1,8 @@
 # Operação
 
 > Estado em 29/10/2026: Fase 1 implantada e **publicada em HTTPS** em
-> `https://ml.brasilices.tech`, via Nginx Proxy Manager. Documento em construção —
-> backup e restauração entram na Fase 6.
+> `https://ml.brasilices.tech`, via Nginx Proxy Manager, com **backup diário e
+> restauração verificada**.
 
 ## Onde roda
 
@@ -81,6 +81,73 @@ ssh -L 8081:127.0.0.1:81 radar-vps
 | Painel sem sessão | 303 para `/login` |
 | `POST /login` sem CSRF | 400 |
 
+## Backup e restauração
+
+Backup diário do banco, por **systemd timer no host** (usuário `radar`), com o `pg_dump`
+executado **dentro do container** do Postgres. Nada é instalado no host e nenhuma
+credencial passa pelo shell do host: o container já tem `POSTGRES_USER`/`POSTGRES_DB`
+no ambiente.
+
+| Item | Valor |
+|---|---|
+| Script de backup | `/srv/seller-radar/scripts/backup.sh` |
+| Script de verificação | `/srv/seller-radar/scripts/verify-backup.sh` |
+| Unidades | `deploy/systemd/seller-radar-backup.{service,timer}` |
+| Diretório | `/srv/seller-radar/backups` (dono `radar`, modo `700`) |
+| Formato | `pg_dump --format=custom --compress=9` |
+| Nome | `radar-AAAAMMDD-HHMMSS.dump` |
+| Agenda | todo dia às **06:00 UTC** = 03:00 em America/Sao_Paulo |
+| Retenção | 14 dias (`BACKUP_RETENTION_DAYS`) |
+
+Duas garantias do `backup.sh`: (1) `flock` impede duas execuções simultâneas — timer e
+execução manual não se atropelam; (2) o arquivo só é publicado depois de passar por
+`pg_restore --list`, então um dump truncado nunca entra no diretório.
+
+O horário está escrito em **UTC de propósito**: este host roda em `Etc/UTC` e o
+`Timezone=` do systemd 255 não foi honrado aqui — o timer apontava para 03:00 UTC em vez
+de 03:00 local. Como o Brasil não tem horário de verão desde 2019, o deslocamento é fixo
+e a equivalência é estável.
+
+### Instalação (já aplicada em 29/10/2026)
+
+```bash
+install -d -o radar -g radar -m 700 /srv/seller-radar/backups
+install -m 644 /srv/seller-radar/deploy/systemd/seller-radar-backup.service /etc/systemd/system/
+install -m 644 /srv/seller-radar/deploy/systemd/seller-radar-backup.timer   /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now seller-radar-backup.timer
+systemctl list-timers seller-radar-backup.timer
+```
+
+### Execução e verificação
+
+```bash
+# backup manual
+sudo -u radar /srv/seller-radar/scripts/backup.sh
+
+# restauração real num banco descartável e comparação de contagens
+sudo -u radar /srv/seller-radar/scripts/verify-backup.sh
+sudo -u radar /srv/seller-radar/scripts/verify-backup.sh /srv/seller-radar/backups/radar-XXXXXXXX-XXXXXX.dump
+```
+
+O `verify-backup.sh` cria `radar_restore_<epoch>`, restaura o dump com `--no-owner
+--no-privileges`, compara a contagem de **todas** as tabelas com o banco de origem e
+**descarta o banco** ao final, inclusive em caso de erro (`trap`). Divergência em uma
+tabela já reprova a verificação com `exit 1`.
+
+### Evidência (29/10/2026)
+
+| Verificação | Resultado |
+|---|---|
+| Backup manual | `radar-20261029-222716.dump`, 12K, legível por `pg_restore --list` |
+| Restauração em banco descartável | `OK: 4 tabelas conferidas, contagens idênticas` |
+| Banco descartável removido | sim (nenhum `radar_restore_*` remanescente) |
+| Timer habilitado | `seller-radar-backup.timer` em `timers.target.wants` |
+
+O que **não** está coberto: os dumps ficam no mesmo disco do banco. Isso protege contra
+erro de operação e corrupção lógica, não contra perda do servidor — cópia externa entra
+na Fase 6.
+
 ## Atualização de versão
 
 ```bash
@@ -101,7 +168,8 @@ curl -s http://127.0.0.1:8010/healthz
 
 ## Pendências
 
-1. **Backup do Postgres** e **restauração testada** — só vale depois de executada de verdade.
+1. ~~**Backup do Postgres** e **restauração testada**~~ — feito em 29/10/2026, ver
+   [Backup e restauração](#backup-e-restauração). Falta apenas a cópia externa (Fase 6).
 2. **Endurecer o `sshd`** (`PasswordAuthentication no`, `PermitRootLogin no`). Bloqueado pela
    ausência de acesso confirmado ao console do provedor: sem ele, um erro de configuração
    significa perda de acesso.
