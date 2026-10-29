@@ -41,6 +41,16 @@ h2 { font-size: 15px; margin: 0 0 10px; letter-spacing: .01em; }
 .muted { color: var(--muted); margin: 0 0 16px; }
 .error { color: var(--error); margin: 0 0 14px; }
 .ok { color: var(--ok); margin: 0; }
+.warn { color: #fbbf24; margin: 0 0 14px; }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+.actions form { margin: 0; }
+.actions button { margin-top: 0; width: auto; }
 
 .topbar {
   display: flex;

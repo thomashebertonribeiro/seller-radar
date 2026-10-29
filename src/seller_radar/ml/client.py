@@ -68,9 +68,7 @@ class MercadoLivreClient:
             )
         return normalized
 
-    async def get_json(
-        self, path: str, *, params: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    async def get_json(self, path: str, *, params: dict[str, Any] | None = None) -> dict[str, Any]:
         return await self._request("GET", path, params=params)
 
     async def _request(

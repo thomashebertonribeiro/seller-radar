@@ -64,8 +64,8 @@ class Settings(BaseSettings):
         except (ValueError, TypeError) as exc:
             raise ValueError(
                 "TOKEN_ENCRYPTION_KEY precisa ser uma chave Fernet em base64 "
-                "(gere com: python -c \"from cryptography.fernet import Fernet; "
-                "print(Fernet.generate_key().decode())\")"
+                '(gere com: python -c "from cryptography.fernet import Fernet; '
+                'print(Fernet.generate_key().decode())")'
             ) from exc
         return value
 

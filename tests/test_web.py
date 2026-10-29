@@ -60,3 +60,28 @@ def test_no_documentation_endpoints_are_exposed(settings: Settings) -> None:
     with _client(settings) as client:
         for path in ("/docs", "/openapi.json", "/redoc"):
             assert client.get(path).status_code == 404
+
+
+def test_oauth_start_requires_session(settings: Settings) -> None:
+    with _client(settings) as client:
+        response = client.post("/auth/mercadolivre/start")
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+
+
+def test_oauth_callback_requires_session(settings: Settings) -> None:
+    with _client(settings) as client:
+        response = client.get("/auth/mercadolivre/callback?code=x&state=y")
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+
+
+def test_oauth_callback_without_code_is_refused(settings: Settings) -> None:
+    """Sem sessão nem banco tocado: o retorno incompleto nunca vira conexão."""
+    with _client(settings) as client:
+        response = client.get("/auth/mercadolivre/callback", follow_redirects=False)
+
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"

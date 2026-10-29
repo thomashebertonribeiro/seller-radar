@@ -12,14 +12,55 @@
   </form>
 </header>
 
+{% if message %}
+<p class="{{ 'ok' if message_ok else 'error' }}" role="status">{{ message }}</p>
+{% endif %}
+
 <section class="card">
   <h2>Conexão com o Mercado Livre</h2>
-  {% if ml_connected %}
-    <p class="ok">Conta conectada.</p>
-  {% elif ml_configured %}
-    <p class="muted">Aplicativo configurado, conta ainda não autorizada.</p>
-  {% else %}
+
+  {% if not ml_configured %}
     <p class="muted">Aplicativo não configurado (variáveis <code>ML_*</code> ausentes).</p>
+
+  {% elif ml_connected and not ml_needs_reconnect %}
+    <p class="ok">
+      Conta conectada{% if ml_nickname %} como <strong>{{ ml_nickname }}</strong>{% endif %}.
+    </p>
+    <p class="muted">Acesso somente leitura, limitado aos dados da própria loja.</p>
+    <div class="actions">
+      <form method="post" action="/auth/mercadolivre/disconnect">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="ghost">Desconectar</button>
+      </form>
+    </div>
+
+  {% elif ml_connected and ml_needs_reconnect %}
+    <p class="warn">
+      A autorização desta conta deixou de ser aceita pelo Mercado Livre.
+      É preciso conectar novamente.
+    </p>
+    <div class="actions">
+      <form method="post" action="/auth/mercadolivre/start">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Conectar novamente</button>
+      </form>
+      <form method="post" action="/auth/mercadolivre/disconnect">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="ghost">Remover conexão</button>
+      </form>
+    </div>
+
+  {% else %}
+    <p class="muted">
+      Autorize o Seller Radar a <strong>ler</strong> os dados da sua loja. Nenhuma
+      alteração é feita em anúncios, pedidos ou preços.
+    </p>
+    <div class="actions">
+      <form method="post" action="/auth/mercadolivre/start">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit">Conectar conta do Mercado Livre</button>
+      </form>
+    </div>
   {% endif %}
 </section>
 

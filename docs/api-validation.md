@@ -34,6 +34,10 @@ Duas renovações concorrentes com o mesmo refresh token derrubam a conexão. Po
 `SELECT ... FOR UPDATE` na linha da integração + advisory lock por conta + gravação do novo
 par na mesma transação.
 
+**Implementado na Fase 2:** `state` de uso único no Postgres (D14), PKCE `S256` com verificador
+cifrado (D15) e renovação sob advisory lock com `needs_reconnect` em erro terminal (D16) —
+ver `docs/arquitetura.md` e `src/seller_radar/ml/credentials.py`.
+
 ## A validar na Fase 2
 
 | Recurso | O que precisa ser confirmado | Status |

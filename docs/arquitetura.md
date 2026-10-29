@@ -146,3 +146,42 @@ com o schema antigo até que `alembic upgrade head` rode explicitamente, e a fal
 `DELETE`, `HEAD` e `OPTIONS`. A única exceção do projeto é `POST /oauth/token`, isolada em
 `seller_radar/ml/oauth.py`.
 
+## Decisões da implementação (Fase 2)
+
+### D14 — `state` do OAuth no banco, de uso único e amarrado ao usuário
+
+**Motivo:** a documentação do Mercado Livre deixa claro que o `state` **não é validado pelo
+provedor** — a proteção é inteiramente nossa. Guardar em memória seria frágil: um restart do
+`web` no meio do fluxo invalidaria uma autorização legítima, e um processo com mais de um worker
+não veria o `state` do outro. A linha em `oauth_states` resolve os dois casos e permite consumo
+atômico.
+
+**Como:** o consumo é um único `UPDATE ... RETURNING` com as condições
+`consumed_at IS NULL AND expires_at > now() AND user_id = :sessão`. Não há janela entre checar e
+marcar — duas requisições simultâneas com o mesmo `state` produzem **uma** troca de código.
+Validade de 10 minutos; linhas vencidas há mais de um dia são apagadas na próxima tentativa.
+
+**Amarração ao usuário:** um `state` capturado por um terceiro não serve na sessão de outra
+pessoa. Isso fecha o ataque de *login CSRF* (induzir a vítima a conectar a conta do atacante).
+
+### D15 — PKCE com `S256`, verificador cifrado
+
+**Motivo:** o Mercado Livre aceita PKCE opcional. Ligar o `S256` custa uma coluna e elimina o
+valor de um `code` interceptado: sem o verificador, o código não vira token. O verificador é
+gravado cifrado com a mesma chave dos tokens (D7), porque é um segredo de uso único tanto quanto
+o próprio `code`.
+
+### D16 — Renovação serializada, com falha terminal explícita
+
+**Motivo:** o refresh token é de uso único e só o último vale (ver `docs/api-validation.md`).
+Duas renovações concorrentes derrubam a conexão de forma irreversível.
+
+**Como:** o caminho rápido (token com mais de 5 minutos de vida) não pega lock. Quando é preciso
+renovar, a execução pega `pg_advisory_xact_lock(namespace, user_id)` e **relê** a credencial com
+`SELECT ... FOR UPDATE`. Quem esperou encontra o token já renovado e não renova de novo. O novo
+par é gravado na mesma transação — ou os dois tokens mudam, ou nenhum.
+
+**Falha terminal:** `invalid_grant`, `invalid_client` e `invalid_token` marcam a credencial com
+`needs_reconnect` e o motivo em `last_error`, em vez de tentar de novo a cada requisição. O painel
+mostra "conectar novamente" e não insiste com o provedor.
+

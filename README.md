@@ -4,10 +4,10 @@ Painel privado de análise de uma loja do Mercado Livre (site MLB, Brasil), com 
 **somente leitura** à API oficial, motor financeiro determinístico e recomendações geradas
 pela Claude API a partir de indicadores já calculados.
 
-> **Status:** Fase 0 (diagnóstico) e Fase 0.5 (contenção da superfície exposta) concluídas.
-> Fase 1 em andamento: esqueleto executável com login próprio, migrações, separação `web`/`worker`
-> e cliente da API do Mercado Livre **somente leitura**, com teste que falha se a regra mudar.
-> Nenhum indicador financeiro é exibido ainda.
+> **Status:** Fases 0, 0.5 e 1 concluídas — login próprio, painel em HTTPS, migrações, backup
+> diário com restauração verificada e motor financeiro determinístico. Fase 2 em andamento:
+> conexão OAuth com o Mercado Livre (`state` de uso único, PKCE, tokens cifrados e renovação
+> serializada). Nenhum indicador financeiro é exibido ainda.
 
 ## Problema
 

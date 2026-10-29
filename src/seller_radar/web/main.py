@@ -30,6 +30,7 @@ from seller_radar.security import (
     new_csrf_token,
     verify_password,
 )
+from seller_radar.web.oauth_routes import router as ml_router
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -50,6 +51,19 @@ _SECURITY_HEADERS = {
 
 _attempts: dict[str, list[float]] = {}
 _attempts_lock = Lock()
+
+# Mensagens do retorno do OAuth. O código vem na URL; o texto fica aqui para que
+# nada arbitrário seja refletido na página.
+ML_MESSAGES: dict[str, tuple[str, bool]] = {
+    "conectado": ("Conta do Mercado Livre conectada.", True),
+    "desconectado": ("Conta do Mercado Livre desconectada.", False),
+    "negado": ("Autorização cancelada no Mercado Livre.", False),
+    "invalido": ("Retorno incompleto do Mercado Livre. Tente conectar novamente.", False),
+    "state": ("A autorização expirou ou já foi usada. Comece de novo.", False),
+    "falhou": ("O Mercado Livre recusou a troca do código. Tente novamente.", False),
+    "csrf": ("Sessão expirada. Recarregue a página.", False),
+    "nao_configurado": ("Aplicativo do Mercado Livre não configurado.", False),
+}
 
 
 def _client_ip(request: Request) -> str:
@@ -101,6 +115,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         https_only=settings.session_cookie_secure,
     )
     app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+    app.include_router(ml_router)
 
     @app.middleware("http")
     async def _security_headers(request: Request, call_next):
@@ -176,7 +191,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return RedirectResponse("/login", status_code=303)
 
     @app.get("/", response_class=HTMLResponse)
-    def dashboard(request: Request, db: Session = Depends(get_db)) -> Response:
+    def dashboard(request: Request, ml: str = "", db: Session = Depends(get_db)) -> Response:
         user_id = request.session.get("user_id")
         if not user_id:
             return RedirectResponse("/login", status_code=303)
@@ -192,6 +207,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             request.session[CSRF_SESSION_KEY] = token
 
         credential = user.ml_credential
+        message, message_ok = ML_MESSAGES.get(ml, ("", True)) if ml else ("", True)
         return templates.TemplateResponse(
             request=request,
             name="dashboard.html",
@@ -200,6 +216,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "csrf_token": token,
                 "ml_connected": credential is not None,
                 "ml_configured": settings.ml_configured,
+                "ml_nickname": credential.ml_nickname if credential else None,
+                "ml_needs_reconnect": bool(credential and credential.needs_reconnect),
+                "message": message,
+                "message_ok": message_ok,
             },
         )
 

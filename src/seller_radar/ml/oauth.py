@@ -8,6 +8,8 @@ justamente para que a exceção seja explícita e auditável.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -48,19 +50,35 @@ def new_state() -> str:
     return secrets.token_urlsafe(32)
 
 
-def build_authorize_url(settings: Settings, state: str) -> str:
+def new_code_verifier() -> str:
+    """Verificador PKCE (43 a 128 caracteres, RFC 7636)."""
+    return secrets.token_urlsafe(64)
+
+
+def code_challenge(verifier: str) -> str:
+    """`code_challenge` = base64url(sha256(verifier)), sem padding."""
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
+    return base64.urlsafe_b64encode(digest).rstrip(b"=").decode("ascii")
+
+
+def build_authorize_url(
+    settings: Settings, state: str, *, pkce_challenge: str | None = None
+) -> str:
     if not settings.ml_configured:
         raise OAuthError("configuracao_ausente", "ML_CLIENT_ID/SECRET/REDIRECT_URI não definidos")
-    query = urlencode(
-        {
-            "response_type": "code",
-            "client_id": settings.ml_client_id,
-            "redirect_uri": settings.ml_redirect_uri,
-            "scope": SCOPE,
-            "state": state,
-        }
-    )
-    return f"{AUTHORIZE_URL}?{query}"
+    params = {
+        "response_type": "code",
+        "client_id": settings.ml_client_id,
+        "redirect_uri": settings.ml_redirect_uri,
+        "scope": SCOPE,
+        "state": state,
+    }
+    if pkce_challenge:
+        # Neutraliza interceptação do `code`: sem o verificador, o código não
+        # pode ser trocado por tokens.
+        params["code_challenge"] = pkce_challenge
+        params["code_challenge_method"] = "S256"
+    return f"{AUTHORIZE_URL}?{urlencode(params)}"
 
 
 async def _post_token(

@@ -70,9 +70,7 @@ async def test_definitive_4xx_is_not_retried() -> None:
 async def test_gives_up_after_max_attempts_on_5xx(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(MercadoLivreClient, "_backoff", staticmethod(lambda attempt, response: 0))
     captured: list[httpx.Request] = []
-    client = _client(
-        make_transport([httpx.Response(500, text="boom") for _ in range(3)], captured)
-    )
+    client = _client(make_transport([httpx.Response(500, text="boom") for _ in range(3)], captured))
 
     with pytest.raises(MercadoLivreError):
         await client.get_json("/users/me")

@@ -11,7 +11,9 @@ from seller_radar.ml.oauth import (
     TOKEN_URL,
     OAuthError,
     build_authorize_url,
+    code_challenge,
     exchange_code,
+    new_code_verifier,
     refresh,
 )
 from tests.conftest import make_transport
@@ -33,6 +35,33 @@ def test_authorize_url_requires_configuration(settings: Settings) -> None:
 
     with pytest.raises(OAuthError):
         build_authorize_url(sem_ml, "estado")
+
+
+def test_pkce_challenge_matches_rfc7636_vector() -> None:
+    """Vetor do Apêndice B da RFC 7636 — trava a implementação do S256."""
+    verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+
+    assert code_challenge(verifier) == "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+
+
+def test_pkce_verifier_has_valid_length_and_entropy() -> None:
+    verifiers = {new_code_verifier() for _ in range(16)}
+
+    assert len(verifiers) == 16
+    assert all(43 <= len(v) <= 128 for v in verifiers)
+
+
+def test_authorize_url_carries_pkce_when_asked(settings: Settings) -> None:
+    url = build_authorize_url(settings, "estado", pkce_challenge="desafio")
+
+    assert "code_challenge=desafio" in url
+    assert "code_challenge_method=S256" in url
+
+
+def test_authorize_url_without_pkce_omits_the_parameters(settings: Settings) -> None:
+    url = build_authorize_url(settings, "estado")
+
+    assert "code_challenge" not in url
 
 
 async def test_exchange_code_posts_only_to_token_endpoint(settings: Settings) -> None:

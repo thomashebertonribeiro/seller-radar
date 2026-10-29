@@ -2,7 +2,7 @@
 
 > Estado em 29/10/2026: Fase 1 implantada e **publicada em HTTPS** em
 > `https://ml.brasilices.tech`, via Nginx Proxy Manager, com **backup diário e
-> restauração verificada**.
+> restauração verificada**. Conexão OAuth com o Mercado Livre implementada (Fase 2).
 
 ## Onde roda
 
@@ -149,6 +149,71 @@ tabela já reprova a verificação com `exit 1`.
 O que **não** está coberto: os dumps ficam no mesmo disco do banco. Isso protege contra
 erro de operação e corrupção lógica, não contra perda do servidor — cópia externa entra
 na Fase 6.
+
+## Conexão com o Mercado Livre
+
+O painel em `/` tem o botão **Conectar conta do Mercado Livre**. O fluxo é:
+
+```
+POST /auth/mercadolivre/start      → state + PKCE, redireciona ao Mercado Livre
+GET  /auth/mercadolivre/callback   → consome o state, troca o code, grava os tokens
+POST /auth/mercadolivre/disconnect → apaga a credencial
+```
+
+### Variáveis de ambiente
+
+| Variável | Valor |
+|---|---|
+| `ML_CLIENT_ID` | App ID do aplicativo no DevCenter |
+| `ML_CLIENT_SECRET` | Secret do aplicativo |
+| `ML_REDIRECT_URI` | `https://ml.brasilices.tech/auth/mercadolivre/callback` |
+
+As três precisam existir e ser **idênticas** ao cadastro no DevCenter. Sem elas, o painel diz
+"aplicativo não configurado" e o botão de conexão não aparece. Os valores nunca vão para o Git,
+para log ou para documento — apenas os nomes.
+
+### Registro no DevCenter
+
+O `redirect_uri` enviado na autorização tem de ser **exatamente igual** ao cadastrado, senão o
+Mercado Livre recusa com erro antes de chegar ao callback. A lista de Redirect URIs do aplicativo
+é aditiva: acrescentar `https://ml.brasilices.tech/auth/mercadolivre/callback` não afeta as URIs
+antigas.
+
+Se o aplicativo tiver PKCE habilitado no DevCenter, o `code_challenge` (S256) já é enviado — não
+há nada a configurar do lado do código.
+
+### Como saber se está funcionando
+
+1. Abrir `https://ml.brasilices.tech/` autenticado.
+2. Clicar em **Conectar conta do Mercado Livre**.
+3. Autorizar no site do Mercado Livre.
+4. Voltar ao painel com "Conta do Mercado Livre conectada" e o apelido do vendedor.
+
+No banco, a credencial aparece cifrada:
+
+```bash
+docker compose exec db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
+  -c "select ml_user_id, ml_nickname, expires_at, needs_reconnect from ml_credentials"
+```
+
+Um dump do banco **não** entrega o token: `access_token_enc` e `refresh_token_enc` só fazem
+sentido com `TOKEN_ENCRYPTION_KEY`, que fica fora do banco.
+
+### Quando pedir reconexão
+
+`needs_reconnect = true` significa que o provedor recusou o refresh (`invalid_grant`,
+`invalid_client`, `invalid_token`). Causas típicas: troca de senha, secret do aplicativo
+alterado, revogação do acesso ou 4 meses sem uso. O painel mostra "conectar novamente" e o
+sistema **para de tentar** em vez de insistir com o provedor.
+
+### Diagnóstico
+
+| Sintoma | Causa provável |
+|---|---|
+| Volta com "autorização expirou ou já foi usada" | callback repetido, mais de 10 min no login do ML, ou `state` de outra sessão |
+| Volta com "o Mercado Livre recusou a troca do código" | `ML_REDIRECT_URI` diferente do cadastrado, ou `code` já consumido |
+| "aplicativo não configurado" | falta uma das três variáveis `ML_*` no `.env` (exige recriar o container) |
+| "conta conectada" mas sem apelido | `/users/me` falhou; a conexão em si está válida |
 
 ## Atualização de versão
 
