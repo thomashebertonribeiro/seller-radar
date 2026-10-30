@@ -41,6 +41,11 @@ SELLER = "2617251613"
 NOW = datetime(2026, 10, 29, 12, 0, tzinfo=UTC)
 
 
+# Valor real devolvido pela API (38 caracteres): estourou `varchar(24)` no
+# primeiro sync em produção e derrubou o `INSERT INTO items` inteiro.
+LONG_DOMAIN = "MLB-MANUAL_GARLIC_PRESSES_AND_CHOPPERS"
+
+
 def _item(item_id: str, *, status: str = "active", price: str = "47.17") -> dict:
     return {
         "id": item_id,
@@ -50,6 +55,7 @@ def _item(item_id: str, *, status: str = "active", price: str = "47.17") -> dict
         "price": price,
         "available_quantity": 10,
         "sold_quantity": 2,
+        "domain_id": LONG_DOMAIN,
         "listing_type_id": "gold_special",
         "condition": "new",
         "catalog_listing": False,
@@ -274,6 +280,8 @@ async def test_full_sync_persists_and_allocates(account: int) -> None:
         assert items[str(keys["item_a"])].status == "active"
         assert items[str(keys["item_b"])].status == "closed"
         assert items[str(keys["item_a"])].seller_sku == f"sku-{keys['item_a']}"
+        # Regressão: o domínio real tem 38 caracteres e é gravado inteiro.
+        assert items[str(keys["item_a"])].domain_id == LONG_DOMAIN
 
         orders = {row.id: row for row in db.scalars(select(Order))}
         assert set(orders) == {keys["order_multi"], keys["order_single"]}

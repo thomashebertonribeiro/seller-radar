@@ -68,6 +68,16 @@ def test_item_row_accepts_missing_sku() -> None:
     assert row["seller_sku"] is None
 
 
+def test_item_row_keeps_the_whole_domain_slug() -> None:
+    """Medido: o domínio real tem 38 caracteres — nada é truncado na coleta."""
+    domain = "MLB-MANUAL_GARLIC_PRESSES_AND_CHOPPERS"
+
+    row = parse.item_row({"id": "MLB1", "domain_id": domain}, NOW)
+
+    assert row["domain_id"] == domain
+    assert len(row["domain_id"]) == 38
+
+
 def test_item_row_without_id_is_rejected() -> None:
     with pytest.raises(parse.BadPayload):
         parse.item_row({"title": "sem id"}, NOW)

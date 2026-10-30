@@ -171,7 +171,11 @@ class Item(Base):
     status: Mapped[str | None] = mapped_column(String(24))
     sub_status: Mapped[list[str] | None] = mapped_column(ARRAY(String(32)))
     category_id: Mapped[str | None] = mapped_column(String(24))
-    domain_id: Mapped[str | None] = mapped_column(String(24))
+    # É um slug de taxonomia (`MLB-MANUAL_GARLIC_PRESSES_AND_CHOPPERS`, 38
+    # caracteres medidos), não um id de formato fixo. Sem tamanho documentado
+    # pelo provedor, `text` evita que o próximo domínio mais longo derrube a
+    # coleta inteira — foi exatamente o que aconteceu com `varchar(24)`.
+    domain_id: Mapped[str | None] = mapped_column(Text)
     listing_type_id: Mapped[str | None] = mapped_column(String(24))
     condition: Mapped[str | None] = mapped_column(String(24))
     catalog_listing: Mapped[bool | None] = mapped_column(Boolean)
