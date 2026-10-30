@@ -8,20 +8,22 @@ tela apresenta número: os indicadores dependem dos endpoints ainda marcados com
 from __future__ import annotations
 
 import time
+from datetime import datetime
 from pathlib import Path
 from threading import Lock
+from zoneinfo import ZoneInfo
 
 from fastapi import Depends, FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
 from seller_radar.config import Settings, get_settings
 from seller_radar.db import get_db
-from seller_radar.models import User, utcnow
+from seller_radar.models import Item, ItemVisit, Order, OrderItem, SyncRun, User, utcnow
 from seller_radar.security import (
     CSRF_SESSION_KEY,
     csrf_matches,
@@ -98,6 +100,52 @@ def _clear_failures(ip: str) -> None:
 def reset_login_throttle() -> None:
     with _attempts_lock:
         _attempts.clear()
+
+
+def local_time(value: datetime | None, tz_name: str) -> str | None:
+    """Data do banco (UTC) no fuso da loja, para exibição."""
+    if value is None:
+        return None
+    try:
+        tz = ZoneInfo(tz_name)
+    except (KeyError, ValueError):
+        tz = ZoneInfo("UTC")
+    return value.astimezone(tz).strftime("%d/%m/%Y %H:%M")
+
+
+def _sync_context(db: Session, user_id: int, settings: Settings) -> dict[str, object]:
+    """Estado da coleta — contagens reais, sem indicador financeiro estimado."""
+    last = db.scalar(
+        select(SyncRun)
+        .where(SyncRun.user_id == user_id)
+        .order_by(SyncRun.started_at.desc())
+        .limit(1)
+    )
+    duration = None
+    if last is not None and last.finished_at is not None:
+        duration = max(int((last.finished_at - last.started_at).total_seconds()), 0)
+
+    return {
+        "last": last,
+        "started": local_time(last.started_at if last else None, settings.timezone),
+        "duration_seconds": duration,
+        "items": db.scalar(select(func.count()).select_from(Item)) or 0,
+        "items_active": (
+            db.scalar(select(func.count()).select_from(Item).where(Item.status == "active")) or 0
+        ),
+        "orders": db.scalar(select(func.count()).select_from(Order)) or 0,
+        "visit_days": db.scalar(select(func.count()).select_from(ItemVisit)) or 0,
+        "freight_estimated_orders": (
+            db.scalar(
+                select(func.count(func.distinct(OrderItem.order_id))).where(
+                    OrderItem.freight_estimated.is_(True)
+                )
+            )
+            or 0
+        ),
+        "daily_run_time": settings.daily_run_time,
+        "timezone": settings.timezone,
+    }
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -226,6 +274,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 "ml_needs_reconnect": bool(credential and credential.needs_reconnect),
                 "message": message,
                 "message_ok": message_ok,
+                "sync": _sync_context(db, user.id, settings),
             },
         )
 

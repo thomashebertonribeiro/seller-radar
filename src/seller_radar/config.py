@@ -53,6 +53,18 @@ class Settings(BaseSettings):
     daily_run_time: str = "06:00"
     timezone: str = "America/Sao_Paulo"
 
+    # --- Sincronização ---
+    sync_enabled: bool = True
+    # Primeira execução sem checkpoint: quanto passado buscar. Medido: a loja
+    # tem menos de 365 dias de pedidos, e a API devolveu todos nessa janela.
+    sync_initial_days: int = Field(default=365, ge=1, le=3650)
+    # Teto do provedor: `/visits/time_window` recusa acima de 150 dias (HTTP 400).
+    sync_visit_window_days: int = Field(default=150, ge=1, le=150)
+    # Sobreposição da janela de pedidos, para não perder atualização na borda.
+    sync_overlap_minutes: int = Field(default=60, ge=0, le=1440)
+    # Espaçamento entre chamadas: ~60 chamadas por execução com 0,2 s = 12 s.
+    sync_call_spacing_seconds: float = Field(default=0.2, ge=0, le=5)
+
     # --- Backup ---
     backup_retention_days: int = 14
 

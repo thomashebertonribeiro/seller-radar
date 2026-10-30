@@ -110,9 +110,7 @@ def callback(
 
     nickname, site_id = _profile(tokens.access_token)
     try:
-        store_tokens(
-            db, user_id, tokens, _cipher(settings), nickname=nickname, site_id=site_id
-        )
+        store_tokens(db, user_id, tokens, _cipher(settings), nickname=nickname, site_id=site_id)
     except Exception:
         # O token já foi emitido pelo provedor; sem gravar, a autorização se
         # perde e o vendedor precisa repetir o fluxo. Falhar aqui é erro nosso,

@@ -69,11 +69,18 @@ class MercadoLivreClient:
         return normalized
 
     async def get_json(self, path: str, *, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        payload = await self.get(path, params=params)
+        if not isinstance(payload, dict):
+            raise MercadoLivreError(0, f"resposta de {path} não é um objeto JSON")
+        return payload
+
+    async def get(self, path: str, *, params: dict[str, Any] | None = None) -> Any:
+        """GET cru, para endpoints que devolvem lista (multiget e tarifas)."""
         return await self._request("GET", path, params=params)
 
     async def _request(
         self, method: str, path: str, *, params: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    ) -> Any:
         method = self._guard(method)
         last_error: Exception | None = None
 

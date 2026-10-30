@@ -65,11 +65,68 @@
 </section>
 
 <section class="card">
-  <h2>Indicadores</h2>
+  <h2>Sincronização</h2>
+
+  {% if not sync.last %}
+    <p class="muted">
+      Nenhuma sincronização executada ainda. O worker roda todos os dias às
+      <strong>{{ sync.daily_run_time }}</strong> ({{ sync.timezone }}). Para rodar agora:
+      <code>docker compose exec -T worker python -m seller_radar.cli sync</code>
+    </p>
+  {% else %}
+    <p class="run-status">
+      {% if sync.last.status == 'success' %}
+        <span class="ok">Coleta concluída</span>
+      {% elif sync.last.status == 'failed' %}
+        <span class="error">Coleta falhou</span>
+      {% elif sync.last.status == 'running' %}
+        <span class="warn">Coleta em andamento</span>
+      {% else %}
+        <span class="warn">Coleta ignorada: outra execução estava em andamento</span>
+      {% endif %}
+      · {{ sync.started }} ({{ sync.timezone }})
+      {% if sync.duration_seconds is not none %}· {{ sync.duration_seconds }} s{% endif %}
+      · {{ sync.last.mode or 'incremental' }}
+    </p>
+
+    {% if sync.last.error %}
+      <p class="error">{{ sync.last.error }}</p>
+    {% endif %}
+  {% endif %}
+
+  <dl class="stats">
+    <div class="stat"><dt>Anúncios</dt><dd>{{ sync.items }}</dd></div>
+    <div class="stat"><dt>Anúncios ativos</dt><dd>{{ sync.items_active }}</dd></div>
+    <div class="stat"><dt>Pedidos</dt><dd>{{ sync.orders }}</dd></div>
+    <div class="stat"><dt>Dias de visita</dt><dd>{{ sync.visit_days }}</dd></div>
+  </dl>
+
+  {% if sync.freight_estimated_orders %}
+    <p class="muted" style="margin-top: 14px">
+      {{ sync.freight_estimated_orders }} pedido(s) com frete <strong>rateado entre itens</strong>
+      — valor estimado, marcado como tal.
+    </p>
+  {% endif %}
+
+  {% if sync.last and sync.last.warnings %}
+    <ul class="warnings">
+      {% for warning in sync.last.warnings[:5] %}
+        <li>{{ warning }}</li>
+      {% endfor %}
+    </ul>
+    {% if sync.last.warnings | length > 5 %}
+      <p class="muted">… e mais {{ (sync.last.warnings | length) - 5 }} aviso(s).</p>
+    {% endif %}
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Indicadores financeiros</h2>
   <p class="muted">
-    Nenhum indicador é exibido enquanto os endpoints de pedidos, envios e visitas
-    estiverem marcados como <code>pendente</code> em
-    <code>docs/api-validation.md</code>. Número estimado nunca aparece como exato.
+    Os dados já são coletados, mas os indicadores (margem, ponto de equilíbrio,
+    preço mínimo) entram na próxima fase. Enquanto o custo de um anúncio não
+    estiver cadastrado, a margem aparece como <strong>incompleta</strong> com o
+    motivo — nunca como zero.
   </p>
 </section>
 {% endblock %}
