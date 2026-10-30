@@ -55,7 +55,7 @@ Números medidos, não estimados: 56 anúncios (25 ativos), 14 pedidos em 30 dia
 | `GET /shipments/{id}` | OK — `base_cost`, `cost_components`, `logistic_type`, `shipping_option` | frete e modalidade logística |
 | `GET /shipments/{id}/costs` | OK — `gross_amount`, `senders[].cost`, `discounts`, `save` | **custo real do frete do vendedor** |
 | Product Ads | **HTTP 401** — `Operator User is not authorized to access the advertiser` | sem acesso com este token; fica `indisponível` até haver permissão |
-| Notificações | webhook ativo em `/webhooks/mercadolivre`, resposta 200 | tópicos aceitos; processamento só na Fase 3b |
+| Notificações | webhook ativo em `/webhooks/mercadolivre`, resposta 200 | tópicos aceitos; o corpo **não** é processado (D17) |
 | Dados do comprador | `buyer` traz **apenas** `id` e `nickname` | suficiente para distinguir recompra; nada de endereço ou e-mail |
 
 ### Descobertas que mudam o modelo de dados
