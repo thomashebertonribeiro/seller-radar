@@ -197,7 +197,64 @@ tópico. Nenhuma escrita, nenhuma consulta à API no caminho da requisição.
 **desativa o tópico** na aplicação. Processar no caminho da resposta criaria um modo de falha
 silencioso e difícil de diagnosticar, sem nenhum benefício enquanto o volume é baixo.
 
-**Consequência:** quando a Fase 3 existir, o corpo será enfileirado — a resposta continua
-imediata e o trabalho acontece fora do ciclo. Tópicos de interesse já são reconhecidos, então a
-mudança será local.
+**Consequência:** quando o processamento por notificação existir, o corpo será enfileirado — a
+resposta continua imediata e o trabalho acontece fora do ciclo. Tópicos de interesse já são
+reconhecidos, então a mudança será local. Até lá, a coleta diária não depende de webhook.
 
+### D18 — Cobertura de visitas explícita: ausência nunca é zero
+
+**Contexto:** o provedor só devolve dias com visita, e só para anúncio ativo (medido: 150 dias
+é o teto da janela). Uma tabela de visitas sozinha não distingue "zero visitas" de "nunca
+coletado" nem de "anúncio encerrado".
+
+**Decisão:** `item_visits` guarda os pontos diários e `item_visit_coverages` registra, por
+anúncio e por janela, o intervalo consultado, o status do anúncio no momento e se a cobertura é
+**autoritativa**.
+
+**Como:** `authoritative` só é verdadeiro quando o anúncio estava ativo e a API devolveu o
+intervalo. Nesse caso a janela substitui os dados anteriores — uma correção do provedor para
+baixo precisa valer. Para anúncio inativo não há chamada: registra-se a cobertura sem autoridade
+e o histórico coletado enquanto estava ativo é preservado.
+
+### D19 — Frete: custo do vendedor em `/costs`, desconhecido não é zero
+
+**Decisão:** `shipments.seller_cost` é a soma de `senders[].cost` das entradas do nosso
+vendedor em `/shipments/{id}/costs`. Quando ele não aparece, o valor é `NULL`.
+
+**Motivo:** `orders[].shipping_cost` vem sempre nulo (medido) e `base_cost` é a referência do
+provedor, não o que o vendedor pagou. Zero é um valor legítimo — 10 envios da conta têm
+`senders[].cost = 0` porque o comprador paga o frete. Tratar "não aparece" como zero faria a
+margem parecer melhor do que é; tratar zero como desconhecido esconderia frete grátis real.
+
+**Rateio:** o envio pertence a um pedido, mas pode cobrir várias linhas. O custo é rateado
+proporcionalmente ao valor da linha (`unit_price * quantity`) e marcado `freight_estimated`
+quando há mais de uma linha: o total fecha, a divisão exata entre itens é desconhecida. Pedido
+com uma linha recebe o valor integral, sem marcação. Envio sem custo conhecido não gera rateio
+(as linhas ficam `NULL`), e a tela mostra "frete não informado".
+
+### D20 — Receita vem das linhas do pedido, nunca dos pagamentos
+
+**Medido:** `total_paid_amount` inclui o frete pago pelo comprador (pedido de 7,99 com pagamento
+de 16,98) e pedidos cancelados aparecem com pagamento estornado. `marketplace_fee` vem `null` ou
+`0.0` e não serve como tarifa.
+
+**Decisão:** receita = `Σ unit_price * quantity` das linhas não canceladas; tarifa =
+`Σ sale_fee_unit * quantity`. `payments` é gravado para auditoria e conciliação, não para
+cálculo. `total_amount` do pedido é conferência: na conta real ele sempre bateu com a soma das
+linhas.
+
+**Consequência:** nenhum indicador financeiro pode ser derivado de `payments` sem antes explicar
+a diferença de frete — o que a tabela de pagamentos não permite separar.
+
+### D21 — Tamanho de coluna vem de medição, não de estimativa
+
+**Contexto:** o primeiro sync real morreu em `varchar(24)` porque `domain_id` é um slug de
+taxonomia com 38 caracteres. Nenhum teste local pegaria isso: os payloads de teste eram curtos.
+
+**Decisão:** campos de texto do provedor só recebem limite depois de medir o maior valor real.
+Slug de taxonomia sem tamanho documentado vai para `text` — o próximo domínio mais longo não
+pode derrubar a coleta inteira. Identificadores com formato estável (`MLB` + dígitos) mantêm
+limite, que serve de validação.
+
+**Como fica testado:** o valor real de 38 caracteres é gravado no Postgres pela suíte de
+integração, e a coleta tem teste unitário garantindo que não trunca o slug.

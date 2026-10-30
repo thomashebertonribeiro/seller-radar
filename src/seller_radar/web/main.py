@@ -129,7 +129,9 @@ def _sync_context(db: Session, user_id: int, settings: Settings) -> dict[str, ob
         "last": last,
         "started": local_time(last.started_at if last else None, settings.timezone),
         "duration_seconds": duration,
-        "items": db.scalar(select(func.count()).select_from(Item)) or 0,
+        # `items` seria lido pelo Jinja como o método do dict, não como a
+        # contagem. O nome da chave precisa ser inequívoco.
+        "item_count": db.scalar(select(func.count()).select_from(Item)) or 0,
         "items_active": (
             db.scalar(select(func.count()).select_from(Item).where(Item.status == "active")) or 0
         ),

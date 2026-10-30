@@ -2,7 +2,8 @@
 
 > Estado em 29/10/2026: Fase 1 implantada e **publicada em HTTPS** em
 > `https://ml.brasilices.tech`, via Nginx Proxy Manager, com **backup diário e
-> restauração verificada**. Conexão OAuth com o Mercado Livre implementada (Fase 2).
+> restauração verificada**. Conexão OAuth com o Mercado Livre implementada (Fase 2) e
+> **coleta diária de anúncios, pedidos, envios e visitas em produção** (Fase 3b).
 
 ## Onde roda
 
@@ -12,7 +13,7 @@
 | Projeto Compose | `seller-radar` |
 | `web` | `seller-radar-web-1:8000` na rede `proxy`; também `127.0.0.1:8010` |
 | `db` | Postgres 17, sem porta publicada |
-| `worker` | sem porta; esqueleto, sem jobs |
+| `worker` | sem porta; sincronização diária às 06:00 (America/Sao_Paulo) |
 | Domínio | `https://ml.brasilices.tech` (TLS Let's Encrypt, HTTP→HTTPS 301) |
 | Consumo medido | web 70 MB, worker 9 MB, db 45 MB |
 
@@ -56,6 +57,53 @@ docker compose --profile test run --rm test
 # fluxo de autenticação contra Postgres real (usuário descartável)
 docker compose --profile test run --rm test pytest -q -m integration
 ```
+
+## Sincronização
+
+O `worker` roda a coleta todos os dias às **06:00** no fuso `America/Sao_Paulo`
+(`DAILY_RUN_TIME`/`TIMEZONE`). Para rodar agora, sem esperar o horário:
+
+```bash
+docker compose exec -T worker python -m seller_radar.cli sync
+docker compose exec -T worker python -m seller_radar.cli sync --full   # ignora o checkpoint
+```
+
+Uma execução por vez: o lock é um advisory lock do Postgres por usuário (`7301`). Se já houver
+uma rodando, a nova é registrada como `skipped` e termina sem erro. Execução órfã de processo
+morto é marcada como `failed` no início da seguinte.
+
+O que a coleta faz, em ordem: anúncios (`items/search` + multiget) → visitas (só anúncios
+ativos, janela de 150 dias) → pedidos (incremental por `date_last_updated`, com 1 h de
+sobreposição) → envios (`/shipments/{id}` e `/costs`) → rateio do frete.
+
+Conferir o que entrou:
+
+```bash
+docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "
+select (select count(*) from items) as anuncios,
+       (select count(*) from orders) as pedidos,
+       (select count(*) from shipments) as envios,
+       (select count(*) from item_visits) as dias_de_visita"'
+```
+
+O `sync_run` mais recente fica visível no painel (status, duração, contadores e avisos) e no
+banco:
+
+```bash
+docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "
+select started_at, status, items_synced, orders_synced, visits_synced, api_calls, error
+from sync_runs order by started_at desc limit 3"'
+```
+
+Limites conhecidos, todos medidos (ver `docs/api-validation.md`):
+
+- visitas: no máximo 150 dias por chamada — pedir mais devolve HTTP 400;
+- frete: só existe em `/shipments/{id}/costs`; pedido sem envio fica com frete desconhecido
+  (`NULL`), nunca zero;
+- `payments` não serve como receita: `total_paid_amount` inclui o frete pago pelo comprador.
+
+Nesta conta todos os pedidos têm uma única linha, então o rateio de frete nunca ficou marcado
+como estimado. O caminho multi-linha existe e tem teste de integração.
 
 ## Acesso
 
@@ -227,6 +275,7 @@ token já ter sido emitido — obrigando a autorizar de novo. Corrigido na migra
 | Sintoma | Causa provável |
 |---|---|
 | Botão de conectar não faz nada | `form-action` do CSP sem `https://auth.mercadolivre.com.br` — o navegador cancela o redirecionamento em silêncio |
+| Coleta falha com `value too long for type character varying(N)` | campo de texto do provedor maior que a coluna: medir o maior valor real e alargar só aquela coluna (foi o caso do `domain_id`, migração `0005`) |
 | Volta com "autorização expirou ou já foi usada" | callback repetido, mais de 10 min no login do ML, ou `state` de outra sessão |
 | Volta com "o Mercado Livre recusou a troca do código" | `ML_REDIRECT_URI` diferente do cadastrado, ou `code` já consumido |
 | "aplicativo não configurado" | falta uma das três variáveis `ML_*` no `.env` (exige recriar o container) |

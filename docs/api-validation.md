@@ -66,7 +66,7 @@ Números medidos, não estimados: 56 anúncios (25 ativos), 14 pedidos em 30 dia
 2. **`payments[].marketplace_fee` vem `0.0`** no caso medido (`bank_transfer`). Não serve como
    fonte de tarifa; `sale_fee` é a fonte correta.
 3. **`sale_fee` é por item de pedido**, não por pedido — pedidos com vários vendedores/itens
-   exigem soma por linha.
+   exigem soma por linha. *(Refinado na Fase 3b: é por **unidade**, não por linha — ver abaixo.)*
 4. **`seller_custom_field` pode ser `null`**; o SKU também aparece em `order_items[].item.seller_sku`.
    O vínculo anúncio↔custo precisa aceitar SKU ausente sem quebrar.
 5. **Visitas só existem para anúncio ativo** — o anúncio encerrado devolveu `total_visits: 0` e
@@ -75,6 +75,48 @@ Números medidos, não estimados: 56 anúncios (25 ativos), 14 pedidos em 30 dia
 
 Enquanto um recurso estiver `pendente` ou `indisponível`, a tela correspondente mostra
 **"indisponível"** — nunca um número estimado apresentado como real.
+
+## Sincronização real (Fase 3b) — 29/10/2026
+
+Mesma conta, token de produção, **apenas `GET`**. Tudo abaixo foi medido executando a coleta
+contra a API, não lido em documentação.
+
+### Resultado da primeira coleta
+
+| Medida | Valor |
+|---|---|
+| Anúncios | 56 (25 ativos, 28 pausados, 2 em revisão, 1 encerrado) |
+| Pedidos | 48, de 03/02/2026 a 28/10/2026 |
+| Linhas de pedido / pagamentos | 48 / 49 |
+| Envios | 34 |
+| Dias de visita coletados | 144 (somente anúncios ativos) |
+| Cobertura de visitas | 25 autoritativas, 31 não autoritativas |
+| Chamadas à API | 98 em 36 s, **zero avisos** |
+
+### Limites e formatos medidos
+
+| Fato | Evidência | Consequência |
+|---|---|---|
+| `visits/time_window` aceita no máximo **150 dias** | `last=365` → HTTP 400 `should be smaller or equal to 150 days` | janela de visitas fixada em 150; acima disso o provedor recusa |
+| `sale_fee` é **por unidade** | mesmo anúncio com `quantity` 1 e 2 devolve `4.58` nos dois | coluna `sale_fee_unit`; a tarifa da linha é o produto pela quantidade |
+| `/orders/search` devolve todo o histórico com `-365d` e `-730d` (48 nos dois) | contagem idêntica | janela inicial de 365 dias cobre a loja inteira |
+| O envio declara **um** `order_id` | 16 envios em 60 dias, nenhum com dois pedidos | rateio acontece dentro de um pedido, nunca entre pedidos |
+| `shipping_mode` vem `null`; a modalidade está em `mode` (`me2`) | payload de `/shipments/{id}` | ler `mode` como alternativa |
+| `cost_components` vem com números JSON | `{"ratio": 8.25, "loyal_discount": 0.3, ...}` | gravado como texto decimal exato; não entra em cálculo |
+| `seller_cost = 0.00` é **valor real**, não ausência | 10 envios com `senders[].cost = 0` e `cost_components` zerado (comprador paga o frete) | zero explícito é zero; ausência do remetente é que vira `NULL` |
+| `payments[].total_paid_amount` **inclui o frete pago pelo comprador** | pedido de `total_amount` 7,99 com pagamento de 16,98 (= 7,99 + 8,99) | pagamento não é receita; receita é a soma das linhas |
+| 12 pedidos com a tag `no_shipping` não têm `shipping_id` (3 deles `paid`) | `shipping.id` ausente, tag presente | frete fica `NULL` (desconhecido), não zero — nada declara o custo |
+| Todo pedido desta conta tem **uma única linha** | 48 pedidos, 48 linhas | o rateio de frete nunca foi marcado como estimado aqui; o caminho multi-linha existe e é testado |
+| `domain_id` é um slug longo | `MLB-MANUAL_GARLIC_PRESSES_AND_CHOPPERS` (38 caracteres), 18 anúncios acima de 24 | coluna virou `text` na migração `0005` |
+
+### Incidente do primeiro sync — `varchar(24)`
+
+A primeira execução em produção falhou em `INSERT INTO items` com
+`value too long for type character varying(24)`. O `domain_id` real tem 38 caracteres. A
+medição de todos os campos de texto (56 anúncios, 48 pedidos, 34 envios) mostrou que **só essa
+coluna** passava do limite — as demais cabiam com folga (`status` 12/24, `category_id` 9/24,
+`listing_type_id` 12/24, `condition` 4/24, `payment_method_id` 16/32, `logistic_type` 12/32).
+Por isso a correção alargou apenas `items.domain_id`, com medição registrada na migração.
 
 ## Limites de requisição
 
